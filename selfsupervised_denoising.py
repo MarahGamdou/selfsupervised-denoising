@@ -532,7 +532,7 @@ def random_crop_numpy(img, crop_size):
 #----------------------------------------------------------------------------
 
 operation_seed_counter = 0
-def noisify(x, style):
+def noisify(x, style, param_1=None, param_2=None):
     def get_seed():
         global operation_seed_counter
         operation_seed_counter += 1
@@ -560,7 +560,15 @@ def noisify(x, style):
     elif style.startswith('impulse'): # Random replacement with constant/variable alpha.
         params = [float(p) * 0.01 for p in style.replace('impulse', '', 1).split('_')]
         msh = tf.shape(x[:, :1, ...])
-        if len(params) == 1:
+        if (param_1 is not None) and  (param_2 is None):
+            alpha = param_1
+            keep_mask = tf.where(tf.random_uniform(shape=msh, seed=get_seed()) >= alpha, tf.ones(shape=msh), tf.zeros(shape=msh))
+        elif (param_1 is not None) and  (param_2 is not None):
+            min_alpha = param_1
+            max_alpha = param_2
+            alpha = tf.random_uniform(shape=[tf.shape(x)[0], 1, 1, 1], minval=min_alpha, maxval=max_alpha, seed=get_seed())
+            keep_mask = tf.where(tf.random_uniform(shape=msh, seed=get_seed()) >= tf.ones(shape=msh) * alpha, tf.ones(shape=msh), tf.zeros(shape=msh))
+        elif len(params) == 1:
             alpha = params[0]
             keep_mask = tf.where(tf.random_uniform(shape=msh, seed=get_seed()) >= alpha, tf.ones(shape=msh), tf.zeros(shape=msh))
         elif len(params) == 2:
@@ -595,7 +603,9 @@ def train(submit_config,
           eval_interval         = 10000,
           eval_network          = None,
           config_name           = None,
-          dataset_dir           = None):
+          dataset_dir           = None,
+          param_1               = None,
+          param_2               = None):
 
     # Are we in evaluation mode?
     eval_mode = eval_network is not None
@@ -663,12 +673,12 @@ def train(submit_config,
         with tf.device("/gpu:%d" % gpu):
             net_gpu = net if gpu == 0 else net.clone()
             clean_in_gpu = clean_in_split[gpu]
-            noisy_in_gpu, noise_coeff = noisify(clean_in_gpu, noise_style)
+            noisy_in_gpu, noise_coeff = noisify(clean_in_gpu, noise_style , param_1 , param_2)
 
             if pipeline == 'blindspot_mean':
                 reference_in_gpu = noisy_in_gpu
             elif pipeline == 'n2n':
-                reference_in_gpu, _ = noisify(clean_in_gpu, noise_style) # Another noise instantiation.
+                reference_in_gpu, _ = noisify(clean_in_gpu, noise_style, param_1 , param_2 ) # Another noise instantiation.
             else:
                 reference_in_gpu = clean_in_gpu
 
@@ -944,6 +954,8 @@ def main():
     parser.add_argument('--validation-set', help='Evaluation dataset', default='kodak')
     parser.add_argument('--eval', help='Evaluate validation set with the given network pickle')
     parser.add_argument('--train', help='Train for the given config')
+    parser.add_argument('--param-1', help='first noise parameter')
+    parser.add_argument('--param-2', help='second noise parameter')
     args = parser.parse_args()
 
     eval_sets = {
@@ -1000,7 +1012,9 @@ def main():
         minibatch_size      = 4,
         learning_rate       = 3e-4,
         config_name         = config_name,
-        dataset_dir         = args.dataset_dir
+        dataset_dir         = args.dataset_dir,
+        param_1             = args.param_1,
+        param_2             = args.param_2
     )
 
     selected_config = config_map[config_name]
