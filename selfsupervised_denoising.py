@@ -532,7 +532,7 @@ def random_crop_numpy(img, crop_size):
 #----------------------------------------------------------------------------
 
 operation_seed_counter = 0
-def noisify(x, style, param_1=None, param_2=None):
+def noisify(x, style, param_1, param_2):
     def get_seed():
         global operation_seed_counter
         operation_seed_counter += 1
@@ -560,10 +560,10 @@ def noisify(x, style, param_1=None, param_2=None):
     elif style.startswith('impulse'): # Random replacement with constant/variable alpha.
         params = [float(p) * 0.01 for p in style.replace('impulse', '', 1).split('_')]
         msh = tf.shape(x[:, :1, ...])
-        if (param_1 is not None) and  (param_2 is None):
+        if (param_1 > -0.5) and  (param_2 <0 ):
             alpha = param_1
             keep_mask = tf.where(tf.random_uniform(shape=msh, seed=get_seed()) >= alpha, tf.ones(shape=msh), tf.zeros(shape=msh))
-        elif (param_1 is not None) and  (param_2 is not None):
+        elif (param_1 > -0.5) and  (param_2 > -0.5):
             min_alpha = param_1
             max_alpha = param_2
             alpha = tf.random_uniform(shape=[tf.shape(x)[0], 1, 1, 1], minval=min_alpha, maxval=max_alpha, seed=get_seed())
@@ -604,8 +604,8 @@ def train(submit_config,
           eval_network          = None,
           config_name           = None,
           dataset_dir           = None,
-          param_1               = None,
-          param_2               = None):
+          param_1               = -1,
+          param_2               = -1):
 
     # Are we in evaluation mode?
     eval_mode = eval_network is not None
@@ -954,8 +954,8 @@ def main():
     parser.add_argument('--validation-set', help='Evaluation dataset', default='kodak')
     parser.add_argument('--eval', help='Evaluate validation set with the given network pickle')
     parser.add_argument('--train', help='Train for the given config')
-    parser.add_argument('--param-1', help='first noise parameter')
-    parser.add_argument('--param-2', help='second noise parameter')
+    parser.add_argument('--param-1', help='first noise parameter', default= -1)
+    parser.add_argument('--param-2', help='second noise parameter', default= -1)
     args = parser.parse_args()
 
     eval_sets = {
