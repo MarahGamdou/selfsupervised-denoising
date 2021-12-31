@@ -1013,8 +1013,8 @@ def main():
         learning_rate       = 3e-4,
         config_name         = config_name,
         dataset_dir         = args.dataset_dir,
-        param_1             = args.param_1,
-        param_2             = args.param_2
+        param_1             = float(args.param_1),
+        param_2             = float(args.param_2)
     )
 
     selected_config = config_map[config_name]
